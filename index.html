@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>75 Custom Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
+        .grid-box { aspect-ratio: 1/1; border-radius: 6px; border: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; transition: all 0.2s; }
+        input[type="checkbox"]:checked + label { text-decoration: line-through; opacity: 0.4; }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex justify-center pb-20">
+    <div id="app" class="w-full max-w-xl"></div>
+
+    <script>
+        // --- DEFAULT SETUP ---
+        const DEFAULT_TASKS = [
+            "Follow a diet",
+            "45 minute workout",
+            "45 minute workout (outside)",
+            "Drink 4 litres of water",
+            "Read 10 pages of a book",
+            "Take a daily progress pic",
+            "No cheat meals or alcohol"
+        ];
+
+        // --- APP STATE ---
+        let state = JSON.parse(localStorage.getItem('75hard_state')) || {
+            name: "",
+            tasks: [...DEFAULT_TASKS],
+            locked: false,
+            currentDay: 1,
+            completedDays: [],
+            view: 'setup' // 'setup', 'grid', 'daily'
+        };
+
+        // If they already locked it in, make sure they open to the grid
+        if (state.locked && state.view === 'setup') {
+            state.view = 'grid';
+        }
+
+        function save() {
+            localStorage.setItem('75hard_state', JSON.stringify(state));
+            render();
+        }
+
+        // --- VIEWS ---
+        function render() {
+            const root = document.getElementById('app');
+            if (state.view === 'setup') renderSetup(root);
+            else if (state.view === 'grid') renderGrid(root);
+            else if (state.view === 'daily') renderDaily(root);
+        }
+
+        // 1. ONBOARDING / SETUP VIEW
+        function renderSetup(root) {
+            root.innerHTML = `
+                <div class="pt-8 animate-fade-in">
+                    <h1 class="text-4xl font-black italic uppercase tracking-tight text-white mb-2">75 CUSTOM</h1>
+                    <p class="text-slate-400 text-sm font-bold uppercase tracking-widest mb-8">Define your rules.</p>
+                    
+                    <div class="glass p-6 rounded-3xl mb-8 shadow-xl">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Your Name</label>
+                        <input type="text" id="userName" value="${state.name}" placeholder="Enter your name..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white font-bold mb-6 focus:outline-none focus:border-blue-500">
+                        
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Your Daily Non-Negotiables</label>
+                        <div id="task-list" class="space-y-3 mb-6">
+                            ${state.tasks.map((t, i) => `
+                                <div class="flex gap-2">
+                                    <input type="text" onchange="updateTask(${i}, this.value)" value="${t}" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-blue-500">
+                                    <button onclick="removeTask(${i})" class="bg-red-500/10 text-red-500 px-4 rounded-xl font-bold hover:bg-red-500/20 transition">✕</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button onclick="addTask()" class="w-full py-3 border-2 border-dashed border-slate-700 rounded-xl text-slate-500 font-bold uppercase text-xs hover:border-slate-500 hover:text-slate-300 transition">+ Add Custom Rule</button>
+                    </div>
+
+                    <button onclick="lockIn()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-xl uppercase tracking-widest shadow-xl shadow-blue-600/20 transition active:scale-95">Lock It In</button>
+                </div>
+            `;
+        }
+
+        // 2. GRID / DASHBOARD VIEW
+        function renderGrid(root) {
+            let gridHtml = '';
+            for (let i = 1; i <= 75; i++) {
+                const isDone = state.completedDays.includes(i);
+                const isActive = i === state.currentDay;
+                let classes = "grid-box ";
+                
+                if (isDone) classes += "bg-green-500 border-green-500 text-slate-900 shadow-lg shadow-green-500/20";
+                else if (isActive) classes += "border-blue-500 text-blue-500 animate-pulse";
+                else classes += "bg-slate-900/50 text-slate-600";
+                
+                gridHtml += `<div class="${classes}">${isDone ? '✓' : i}</div>`;
+            }
+
+            const headerTitle = state.currentDay > 75 ? "Challenge Complete 🏆" : `Day ${state.currentDay} of 75`;
+
+            root.innerHTML = `
+                <div class="pt-8">
+                    <div class="flex justify-between items-end mb-8">
+                        <div>
+                            <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">${state.name ? state.name + "'s" : "Your"} Journey</p>
+                            <h1 class="text-4xl font-black italic uppercase tracking-tight text-white leading-none">${headerTitle}</h1>
+                        </div>
+                    </div>
+
+                    ${state.currentDay <= 75 ? `
+                        <button onclick="nav('daily')" class="w-full bg-white text-slate-900 hover:bg-gray-200 py-5 rounded-2xl font-black text-lg uppercase tracking-widest shadow-xl mb-10 transition active:scale-95 flex justify-center items-center gap-3">
+                            <span class="text-2xl leading-none">📝</span> Log Today's Progress
+                        </button>
+                    ` : ''}
+
+                    <div class="glass p-6 rounded-3xl shadow-xl">
+                        <div class="grid grid-cols-5 md:grid-cols-10 gap-2">${gridHtml}</div>
+                    </div>
+
+                    <div class="mt-12 text-center">
+                        <button onclick="failChallenge()" class="text-red-500/50 hover:text-red-500 text-[10px] font-black uppercase tracking-[0.2em] transition">Restart Challenge</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 3. DAILY TRACKER VIEW
+        function renderDaily(root) {
+            root.innerHTML = `
+                <div class="pt-8">
+                    <button onclick="nav('grid')" class="text-slate-500 text-[10px] font-black uppercase mb-8 tracking-[0.2em] hover:text-white transition">← Back to Grid</button>
+                    
+                    <h2 class="text-3xl font-black italic uppercase tracking-tight text-white mb-2">Day ${state.currentDay}</h2>
+                    <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-8">Check them off as you go.</p>
+
+                    <div class="glass p-6 rounded-3xl mb-10 shadow-xl space-y-4" id="daily-checklist">
+                        ${state.tasks.map((t, i) => `
+                            <div class="bg-white/5 p-4 rounded-2xl flex items-center gap-4 border border-white/5">
+                                <input type="checkbox" id="task-${i}" class="daily-check w-6 h-6 rounded bg-slate-800 border-slate-700 text-blue-500 focus:ring-0 cursor-pointer">
+                                <label for="task-${i}" class="text-sm font-bold text-white cursor-pointer select-none">${t}</label>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <button onclick="submitDay()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-xl uppercase tracking-widest shadow-xl shadow-blue-600/20 transition active:scale-95">Complete Day</button>
+                </div>
+            `;
+        }
+
+        // --- ACTIONS ---
+        function nav(view) {
+            state.view = view;
+            window.scrollTo(0, 0);
+            save();
+        }
+
+        function updateTask(index, val) {
+            state.tasks[index] = val;
+        }
+
+        function removeTask(index) {
+            state.tasks.splice(index, 1);
+            renderSetup(document.getElementById('app'));
+        }
+
+        function addTask() {
+            state.tasks.push("New rule");
+            renderSetup(document.getElementById('app'));
+        }
+
+        function lockIn() {
+            const nameInput = document.getElementById('userName').value.trim();
+            if (state.tasks.length === 0) return alert("You need at least one rule!");
+            
+            if (confirm("Once you start, you cannot change your rules. Ready to commit?")) {
+                state.name = nameInput;
+                state.locked = true;
+                nav('grid');
+            }
+        }
+
+        function submitDay() {
+            const checkboxes = document.querySelectorAll('.daily-check');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            if (!allChecked) {
+                alert("You haven't finished everything today! Keep going.");
+                return;
+            }
+
+            if (!state.completedDays.includes(state.currentDay)) {
+                state.completedDays.push(state.currentDay);
+            }
+            state.currentDay++;
+            nav('grid');
+        }
+
+        function failChallenge() {
+            if (confirm("Did you miss a day? This will wipe your progress and send you back to Day 1. There is no undo.")) {
+                state.currentDay = 1;
+                state.completedDays = [];
+                // Keeps their custom rules locked in, just resets the days
+                nav('grid');
+            }
+        }
+
+        // Boot it up
+        render();
+    </script>
+</body>
+</html>
